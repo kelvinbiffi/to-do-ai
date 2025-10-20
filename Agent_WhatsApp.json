@@ -1,0 +1,420 @@
+{
+  "name": "[WhatsApp] TODOAI - Task Buddy",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a640f723-3777-4fde-b963-3c37390f8bf4",
+              "leftValue": "={{ $json.messages }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "array",
+                "operation": "lengthGt",
+                "rightType": "number"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        256,
+        -400
+      ],
+      "id": "926aaa9f-9ff1-4a6f-b04b-abe417ec850c",
+      "name": "Has_Message"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('WhatsApp_Message').first().json.messages.first().type }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "32a29448-f793-4244-bd63-42c300caa7b7"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "36a41127-5506-4ede-8b5e-c4f461a8158b",
+                    "leftValue": "={{ $('WhatsApp_Message').first().json.messages.first().type }}",
+                    "rightValue": "audio",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "audio"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        1296,
+        -432
+      ],
+      "id": "7800d948-efdd-4d63-bf48-ebbd22b2a91e",
+      "name": "Switch"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        496,
+        -192
+      ],
+      "id": "d3b2f5bd-c0ed-4ca9-839a-f5a7d6f05e88",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/855796864278366/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer EAAQnazMPEiYBPnRG1CUWO8JHeKJXBLepVFhckxfRXtoITQ0aJlfYC6CyOTYN3bHaKxUWMW9s2KrZCyFOqXfWtd0cCB0PoloBIHrGYMPJf6LoCtZCYcXWxZB71YeZBQKXbgabZA2EFiQvmZApYvRxiX17tZBws67KGQ3N1DxgNQL99qR987am4hlOem6MOGzgPmYPAZDZD"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Constants').first().json.NUMBER }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"{{ $json.output.replaceAll('\"','') }}\"\n  }\n}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1872,
+        -448
+      ],
+      "id": "a7cd9cf7-4057-4d88-96f0-b8dba8e23e2b",
+      "name": "User_Response"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.API_BASE_URL }}/whatsapp/validate-token",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "phone_number",
+              "value": "={{ $json.NUMBER }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        752,
+        -416
+      ],
+      "id": "d8f361ba-80db-4126-99af-8221a6278f89",
+      "name": "HTTP Request",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1176e410-d043-4f46-bb68-ea1b60b47a2d",
+              "name": "API_BASE_URL",
+              "value": "https://todoai-task-buddy.netlify.app/api",
+              "type": "string"
+            },
+            {
+              "id": "ec54bb48-102d-4b04-bec9-5c5ec459e9bf",
+              "name": "NUMBER",
+              "value": "={{ $json.messages.first().from }}",
+              "type": "string"
+            },
+            {
+              "id": "f7e9693c-5f0d-43bb-8671-b0f29cc4be91",
+              "name": "BASE_URL",
+              "value": "https://todoai-task-buddy.netlify.app",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        496,
+        -416
+      ],
+      "id": "d4317e5d-0f4f-44e2-bd44-ee32516493f2",
+      "name": "Constants"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/855796864278366/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer EAAQnazMPEiYBPnRG1CUWO8JHeKJXBLepVFhckxfRXtoITQ0aJlfYC6CyOTYN3bHaKxUWMW9s2KrZCyFOqXfWtd0cCB0PoloBIHrGYMPJf6LoCtZCYcXWxZB71YeZBQKXbgabZA2EFiQvmZApYvRxiX17tZBws67KGQ3N1DxgNQL99qR987am4hlOem6MOGzgPmYPAZDZD"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Constants').item.json.NUMBER }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"Looks is your first time here please access this link to authenticate your messages {{ $('Constants').item.json.BASE_URL }}/login?whatsapp={{ $('Constants').item.json.NUMBER }}\"\n  }\n}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1056,
+        -176
+      ],
+      "id": "c231707a-ef52-4be6-b5e5-d70a52326d29",
+      "name": "Login_Request"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -400
+      ],
+      "id": "66b3e6ab-6994-40fd-aef7-4c356aa0168d",
+      "name": "WhatsApp_Message",
+      "webhookId": "a1762073-b4e6-4909-ab35-59fbc7c1f636",
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "3JwxzChphyvZeHyK",
+          "name": "WhatsApp OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4903364b-3e58-4a3f-81a3-cce38f7eef7f",
+              "name": "EMAIL",
+              "value": "={{ $json.email }}",
+              "type": "string"
+            },
+            {
+              "id": "ce0989f4-1243-4fbf-8c3d-41e09cfbbf68",
+              "name": "AUTH_TOKEN",
+              "value": "={{ $json.auth_token }}",
+              "type": "string"
+            },
+            {
+              "id": "fadee5bf-a1fa-4f33-9054-dc3aaa91f408",
+              "name": "USER_ID",
+              "value": "={{ $json.user_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1056,
+        -432
+      ],
+      "id": "898d5e85-92a0-4e7e-80c6-98e14383b1a6",
+      "name": "USER_DATA"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://primary-production-eae8.up.railway.app/webhook/a719fd44-f2ca-4d14-8ae2-b6684c6743c5",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"message\": \"{{ $('WhatsApp_Message').first().json.messages.first().text.body}}\",\n  \"userAuthToken\": \"{{ $('USER_DATA').first().json.AUTH_TOKEN}}\",\n  \"userId\": \"{{ $('USER_DATA').first().json.USER_ID }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1616,
+        -448
+      ],
+      "id": "79bb07a3-b6a4-42ba-b4e2-2cc5287cecaf",
+      "name": "Call_Agent"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Has_Message": {
+      "main": [
+        [
+          {
+            "node": "Constants",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Call_Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [],
+        []
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "USER_DATA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Login_Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Constants": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp_Message": {
+      "main": [
+        [
+          {
+            "node": "Has_Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "USER_DATA": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call_Agent": {
+      "main": [
+        [
+          {
+            "node": "User_Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "939e4694-83a1-4a79-a54b-da5f9cc82068",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "42b13fc429f60d8ddbcfbf91bc5de64d98485aa2848164313203731aeb63ec72"
+  },
+  "id": "tr2GeDddSjJmHOVp",
+  "tags": []
+}

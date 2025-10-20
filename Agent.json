@@ -1,0 +1,494 @@
+{
+  "name": "TODOAI - Task Buddy",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "a719fd44-f2ca-4d14-8ae2-b6684c6743c5",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -48,
+        224
+      ],
+      "id": "e97fd592-7987-448c-9bc2-b94fcb569aaa",
+      "name": "Webhook",
+      "webhookId": "a719fd44-f2ca-4d14-8ae2-b6684c6743c5"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={message}: {{ $('Webhook').first().json.body.message }}\n{userId}: {{ $('Constants').first().json.USER_ID }}\n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "# Smart Conversational Task Agent\n\nYou are a **smart agent** connected to a TODO REST API.\nYour job is to understand what the user wants (create, list, read, update, mark status, or delete a task) and call the correct tool.\nAlways respond in a **natural, concise tone** and in the **same language** as the user.\n\n---\n\n## 🚨 CRITICAL: Use SEPARATE Tools for Different Updates\n\n**This is the KEY to preventing schema errors!**\n\nWe have SEPARATE tools to prevent empty fields:\n- **`todo_title`** — ONLY for updating title\n- **`todo_description`** — ONLY for updating description\n- **`todo_status`** — ONLY for updating status\n\n**NEVER mix fields in one tool!**\n\n```\nWRONG: Send both title AND description to same tool\nRIGHT: Send title to todo_title, description to todo_description\n```\n\n---\n\n## Tool Output Contract (STRICT)\n\nWhen you call a tool, output **only** a flat JSON object with the exact parameters that tool expects.\n\n**Never send empty strings, null, or undefined.**\n\n### Tools and Expected Params\n\n- **todo_create**: BOTH `\"title\"` + `\"description\"` (REQUIRED). Synthesize description if missing.\n- **todo_list**: `{}` (no parameters)\n- **todo_read**: `{ \"todoId\": string }`\n- **todo_title**: `{ \"todoId\": string, \"title\": string }` — ONLY for renaming\n- **todo_description**: `{ \"todoId\": string, \"description\": string }` — ONLY for updating description\n- **todo_status**: `{ \"todoId\": string, \"status\": \"done\" | \"open\" }` — ONLY for status\n- **todo_delete**: `{ \"todoId\": string }`\n\n---\n\n## 🔥 CRITICAL: Tool Selection Logic\n\n**For `todo_update` operations, choose the RIGHT tool based on WHAT user wants to change:**\n\n### Scenario 1: User wants to UPDATE DESCRIPTION\n```\nUser says: \"atualize a descricao da tarefa comprar pao para algo mais detalhado\"\n↓\nAction: Update description ONLY\nTool: todo_description\nSend: { \"todoId\": \"abc123\", \"description\": \"algo mais detalhado\" }\n```\n\n### Scenario 2: User wants to RENAME (update title)\n```\nUser says: \"rename buy coffee to buy specialty coffee\"\n↓\nAction: Rename/update title ONLY\nTool: todo_title\nSend: { \"todoId\": \"abc123\", \"title\": \"buy specialty coffee\" }\n```\n\n### Scenario 3: User wants BOTH title AND description\n```\nUser says: \"rename task AND change description\"\n↓\nAction: TWO SEPARATE tool calls\nTool 1: todo_title with { \"todoId\": \"...\", \"title\": \"...\" }\nTool 2: todo_description with { \"todoId\": \"...\", \"description\": \"...\" }\n```\n\n### Scenario 4: User adding description to task without description\n```\nUser says: \"comprar um café esta sem descricao\"\n            OR \"adicione uma descricao apra a tarefa Ligar para o banco\"\n↓\nAction: Add/update description\nTool: todo_description\nSend: { \"todoId\": \"...\", \"description\": \"generated or provided\" }\n```\n\n---\n\n## ID Resolution (BEFORE updating)\n\n1. User gives a title like \"comprar pao\" or \"buy coffee\"\n2. Call `todo_list` → get all tasks with ids\n3. Find the best **case-insensitive** title match\n4. Extract its `id` field\n5. Use that `id` as `\"todoId\"` in the update tool call\n\n---\n\n## CRITICAL: todo_create MUST Include Description\n\nFor `todo_create`, **ALWAYS send both title AND description.**\n\nIf user did NOT provide description, synthesize one:\n\n**IMPORTANT: Descriptions should be PRACTICAL and PERSONAL, NOT robotic!**\n\n**Format guidelines:**\n- Natural language, conversational tone\n- Include real-world context or constraints\n- Add practical tips or reminders\n- Think about the actual execution, not generic steps\n- Keep it short (1-2 sentences, max 50 words)\n- Use the user's perspective (not instructional tone)\n\n**Examples of GOOD descriptions:**\n\n❌ WRONG (robotic):\n- \"Liste os tipos de café desejados, verifique a qualidade e frescor na loja, compre a quantidade necessária; armazene adequadamente para manter o sabor.\"\n\n✅ RIGHT (natural & practical):\n- \"Preferir café em grãos frescos, lembrar de verificar validade, comprar onde vendem café de qualidade\"\n- \"Café coado? Em grãos? Lembrar de pedir desconto se comprar mais\"\n- \"Comprar de preferência de manhã quando é mais fresco\"\n\n**More examples:**\n\n❌ WRONG:\n- \"Verifique estoque, escolha pão fresco, compre quantidade necessária; mantenha pão em local adequado\"\n\n✅ RIGHT:\n- \"Pão integral se tiver, verificar validade, não esquecer de guardar congelado\"\n- \"Pão francês de preferência, só na hora de comer para não ficar duro\"\n- \"Ir cedo na padaria antes de acabar, perguntar se saiu hoje\"\n\n❌ WRONG:\n- \"Liste as batatas desejadas, verifique a qualidade na loja, compre a quantidade necessária; armazene em local fresco\"\n\n✅ RIGHT:\n- \"Batata madura, não esquecer de ver se tem machucado ou brotação\"\n- \"Comprar batata inglesa, verificar firmeza, guardar em local sem luz\"\n- \"Lembrar de pedir batata descascada se quiser facilitar\"\n\n---\n\n## Synthesis Rules for Good Descriptions\n\nWhen generating descriptions, ALWAYS:\n\n1. **Think practically**: What would actually help this person do the task?\n2. **Add real constraints**: Budget? Time? Quality? Health? Preferences?\n3. **Include reminders**: Common mistakes to avoid\n4. **Use natural language**: \"Lembrar de...\", \"Não esquecer de...\", \"De preferência...\"\n5. **Be specific to context**: Different approach for \"comprar café\" vs \"comprar remédio\"\n6. **Keep it concise**: 1-2 sentences max, no lists or steps\n7. **Avoid instructions**: Don't say \"make sure to\", say \"don't forget to\"\n\n---\n\n## Context-Based Examples\n\n**For shopping tasks:**\n- \"Verificar validade, de preferência produto de marca conhecida, guardar em lugar fresco\"\n- \"Ver se tem estoque, comprar a quantidade que usa em uma semana\"\n- \"Ir na hora de pico para ter mais variedade, não esquecer a lista\"\n\n**For appointments/calls:**\n- \"Ter cpf e dados de conta em mãos, não chamar na hora do almoço\"\n- \"Ligar de manhã cedo, ter caneta e papel para anotar\"\n- \"Confirmar agora mesmo antes que perca a vontade de ligar\"\n\n**For tasks with deadlines:**\n- \"Fazer de preferência quinta à noite para enviar sexta\"\n- \"Tem prazo até sexta, não deixar para última hora\"\n- \"Fazer antes que chegue o feedback do gerente\"\n\n**For personal tasks:**\n- \"Desligar o celular para se concentrar, fazer num lugar tranquilo\"\n- \"Ter água por perto, fazer quando acordar descansado\"\n- \"Colocar música para animar, não deixar pra noite\"\n\n---\n\n## Remember\n\n✅ Descriptions should sound like **personal notes to self**\n✅ Include **actual constraints and preferences**\n✅ Add **practical reminders** about common mistakes\n✅ Keep **natural, conversational tone**\n✅ Be **specific to the actual task**, not generic steps\n\n---\n\n## Status Mapping\n\n- User: done, completed, finished, feita, concluída → Send: `\"done\"`\n- User: open, reopen, em aberto, reabrir → Send: `\"open\"`\n\n---\n\n## Intent Mapping\n\n| User Intent | Keywords | Tool |\n|---|---|---|\n| Create | create, add, criar, nova | `todo_create` |\n| List | list, show, listar, mostrar | `todo_list` |\n| Read | details, detalhes | `todo_read` |\n| Update title/rename | edit, rename, editar, atualizar, renomear, title | `todo_title` |\n| Update description | description, descricao, adicionar descricao, add note | `todo_description` |\n| Mark status | mark as done, feita, reopen, concluir | `todo_status` |\n| Delete | delete, remove, deletar, apagar | `todo_delete` |\n\n---\n\n## Logic Rules\n\n1. **For todo_create**: ALWAYS synthesize description if missing. Send BOTH title + description.\n2. **For updates**: Use SEPARATE tools — never mix fields!\n   - Renaming? Use `todo_title`\n   - Changing description? Use `todo_description`\n   - Changing status? Use `todo_status`\n3. **For read/delete**: Call todo_list FIRST to resolve id.\n4. **Match case-insensitive**: When finding tasks by title.\n5. **One tool per request**: Call only ONE tool per user request (unless updating multiple fields → multiple sequential calls).\n\n---\n\n## ✅ Examples of CORRECT Behavior\n\n### Example 1: Update Description Only\n```\nUser: \"atualize a descricao da tarefa comprar pao para algo mais detalhado\"\n→ Call todo_list (find \"comprar pao\" → id=\"abc123\")\n→ Call todo_description with { \"todoId\": \"abc123\", \"description\": \"algo mais detalhado\" }\n→ Response: \"Descrição atualizada.\"\n```\n\n### Example 2: Add Description to Task\n```\nUser: \"comprar um café esta sem descricao\"\n→ Call todo_list (find \"comprar um café\" → id=\"abc123\")\n→ Call todo_description with { \"todoId\": \"abc123\", \"description\": \"...\" }\n→ Response: \"Descrição adicionada.\"\n```\n\n### Example 3: Rename Task\n```\nUser: \"rename buy coffee to buy specialty coffee\"\n→ Call todo_list (find \"buy coffee\" → id=\"abc123\")\n→ Call todo_title with { \"todoId\": \"abc123\", \"title\": \"buy specialty coffee\" }\n→ Response: \"Task renamed to buy specialty coffee.\"\n```\n\n### Example 4: Both Changes (TWO calls)\n```\nUser: \"rename comprar pao to comprar pao integral AND add detailed description\"\n→ Call todo_list (find \"comprar pao\" → id=\"abc123\")\n→ Call todo_title with { \"todoId\": \"abc123\", \"title\": \"comprar pao integral\" }\n→ Call todo_description with { \"todoId\": \"abc123\", \"description\": \"...\" }\n→ Response: \"Task updated: renamed and description added.\"\n```\n\n---\n\n## Output\n\nRespond briefly and naturally in user's language:\n- \"Descrição atualizada.\"\n- \"Task renamed.\"\n- \"Tarefa criada: Comprar café.\"\n- \"Task marked as done.\"\n- \"Task deleted.\"\n\nNever show raw JSON.\n\n---\n\n## Error Handling\n\n- Missing ID: Call `todo_list` first\n- Schema error: You mixed fields in one tool. Use separate tools!\n- 404: Task not found\n- 401: Invalid token\n\n---\n\n## Core Rules\n\n✅ Use SEPARATE tools for different update types\n✅ NEVER send empty fields\n✅ Call todo_list FIRST for id resolution\n✅ Synthesize description for todo_create\n✅ Respond in user's language\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        368,
+        224
+      ],
+      "id": "f5e70821-1e74-450e-9eb2-c2da83aa3adc",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        160,
+        512
+      ],
+      "id": "42c97670-6f51-41d6-ab8e-5923fbd2bda4",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "hpPu6OcnvTe5O8io",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "699b11c5-74e5-4982-a4c0-b443ef47c770",
+              "name": "API_BASE_URL",
+              "value": "http://host.docker.internal:3000/api",
+              "type": "string"
+            },
+            {
+              "id": "b1159f14-b58e-49e9-b461-de0c7131fe8d",
+              "name": "AUTH_TOKEN",
+              "value": "={{ $json.body.userAuthToken }}",
+              "type": "string"
+            },
+            {
+              "id": "2e08d748-19e4-43b0-a3f4-fd61b9272787",
+              "name": "USER_ID",
+              "value": "={{ $json.body.userId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        160,
+        224
+      ],
+      "id": "1c37095f-4018-4f49-bbe1-a8e693ddf20c",
+      "name": "Constants"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "014ae296-c31a-4afb-b07f-73dd96ac5ada",
+      "name": "HTTP Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        720,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Constants').first().json.USER_ID }}",
+        "contextWindowLength": 20
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        352,
+        512
+      ],
+      "id": "a0f58b9b-616e-414e-9a92-bd6268f751cb",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Creates a new todo for the authenticated user.\nRequires a valid Authorization: Bearer {userAuthToken} header.\nMandatory field: title. Optional field: description.",
+        "method": "POST",
+        "url": "={{ $('Constants').item.json.API_BASE_URL }}/todos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Constants').item.json.AUTH_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $fromAI('title', ``, 'string') }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ $fromAI('description', ``, 'string') }}"
+            }
+          ]
+        },
+        "options": {},
+        "optimizeResponse": true
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        528,
+        512
+      ],
+      "id": "33cee488-4a1c-46f2-93a9-9ba777d77f29",
+      "name": "todo_create"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Lists all todos belonging to the authenticated user.\nRequires a valid Authorization: Bearer {userAuthToken} header.",
+        "url": "={{ $('Constants').item.json.API_BASE_URL }}/todos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Constants').item.json.AUTH_TOKEN }}"
+            }
+          ]
+        },
+        "options": {},
+        "optimizeResponse": true
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        512
+      ],
+      "id": "e2d4911c-5e1e-468c-bdeb-f46a021a3674",
+      "name": "todo_list"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Retrieves details of a specific todo using its ID.\nRequires a valid Authorization: Bearer {userAuthToken} header.\nRoute: GET /api/todos/{id}.",
+        "url": "={{ $('Constants').first().json.API_BASE_URL }}/todos/{{ $fromAI('todoId', ``, 'string') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Constants').item.json.AUTH_TOKEN }}"
+            }
+          ]
+        },
+        "options": {},
+        "optimizeResponse": true,
+        "dataField": "{   \"success\": true,   \"data\": {     \"id\": \"b4c1272a-10fb-4ef3-a1fe-64aae3a38ebe\",     \"user_id\": \"user123\",     \"title\": \"Do the dishes\",     \"description\": \"Clean kitchen\",     \"status\": \"open\",     \"created_at\": \"2025-10-18T05:26:20.679Z\",     \"updated_at\": \"2025-10-18T05:26:20.679Z\"   } }"
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        752,
+        512
+      ],
+      "id": "ce4129c4-7d14-489d-be61-a8f72fd6ffc7",
+      "name": "todo_read"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Retrieves details of a specific todo using its ID.\nRequires a valid Authorization: Bearer {userAuthToken} header.\nRoute: GET /api/todos/{id}.",
+        "method": "DELETE",
+        "url": "={{ $('Constants').item.json.API_BASE_URL }}/todos/{{ $fromAI('todoId', ``, 'string') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Constants').item.json.AUTH_TOKEN }}"
+            }
+          ]
+        },
+        "options": {},
+        "optimizeResponse": true
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1248,
+        512
+      ],
+      "id": "b77f0e88-adbf-4b24-81b1-c2b621157e74",
+      "name": "todo_delete"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Updates status of on existing todo by ID.\nAllows updating any of the following fields:\n- status (values: open or done)\nRequires a valid Authorization: Bearer {userAuthToken} header.",
+        "method": "PATCH",
+        "url": "={{ $('Constants').item.json.API_BASE_URL }}/todos/{{ $fromAI('todoId', ``, 'string') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Constants').item.json.AUTH_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "={{ $fromAI('status', ``, 'string') }}"
+            }
+          ]
+        },
+        "options": {},
+        "optimizeResponse": true
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        512
+      ],
+      "id": "9c8dbf0b-1df7-4938-8f68-8ff81bfeb074",
+      "name": "todo_status"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Updates an existing todo by ID.\nAllows updating any of the following fields:\n- title",
+        "method": "PATCH",
+        "url": "={{ $('Constants').item.json.API_BASE_URL }}/todos/{{ $fromAI('todoId', ``, 'string') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Constants').item.json.AUTH_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $fromAI('title', ``, 'string') }}"
+            }
+          ]
+        },
+        "options": {},
+        "optimizeResponse": true
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        864,
+        512
+      ],
+      "id": "8963bceb-f991-4947-af5a-8e78ee988f81",
+      "name": "todo_title"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Updates an existing todo by ID.\nAllows updating any of the following fields:\n- description",
+        "method": "PATCH",
+        "url": "={{ $('Constants').item.json.API_BASE_URL }}/todos/{{ $fromAI('todoId', ``, 'string') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Constants').item.json.AUTH_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "description",
+              "value": "={{ $fromAI('description', ``, 'string') }}"
+            }
+          ]
+        },
+        "options": {},
+        "optimizeResponse": true
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        992,
+        512
+      ],
+      "id": "116a3e3b-cac1-4237-80f6-44e623148fb8",
+      "name": "todo_description"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Constants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Constants": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "HTTP Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "todo_create": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "todo_list": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "todo_read": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "todo_delete": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "todo_status": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "todo_title": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "todo_description": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "bc6c50e9-da80-4a9e-8ce8-254a93c3f397",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2e91d7066c923eae6bacecf17be7d87f24cd00ca5c1d89b4790cd6aaa0cdb193"
+  },
+  "id": "kJs5dbYCvCrIb6BI",
+  "tags": []
+}
