@@ -3,25 +3,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import bcrypt from 'bcryptjs'
 import { generateAuthToken } from '@/lib/auth-token'
+import { successResponse, errorResponse, databaseErrorResponse } from '@/lib/ApiResponseHelper'
+import { logger } from '@/lib/Logger'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { email, password } = body
 
-    console.log('📝 Signup:', email)
+    logger.debug('📝 Signup:', email)
 
     if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
+      return errorResponse(
+        'Email and password are required',
+        400,
+        { validationErrors: { email: !email ? 'Email is required' : undefined, password: !password ? 'Password is required' : undefined } },
+        'POST /api/auth/signup'
       )
     }
 
     if (password.length < 6) {
-      return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
-        { status: 400 }
+      return errorResponse(
+        'Password must be at least 6 characters',
+        400,
+        { validationErrors: { password: 'Minimum 6 characters required' } },
+        'POST /api/auth/signup'
       )
     }
 
@@ -35,9 +41,11 @@ export async function POST(request: NextRequest) {
       .eq('email', email)
 
     if (existingUsers && existingUsers.length > 0) {
-      return NextResponse.json(
-        { error: 'Email already registered' },
-        { status: 409 }
+      return errorResponse(
+        'Email already registered',
+        409,
+        { reason: 'Duplicate email' },
+        'POST /api/auth/signup'
       )
     }
 
@@ -55,14 +63,11 @@ export async function POST(request: NextRequest) {
       })
 
     if (error) {
-      console.error('❌ Error creating user:', error.message)
-      return NextResponse.json(
-        { error: 'Failed to create account' },
-        { status: 400 }
-      )
+      logger.debug('❌ Error creating user:', error.message)
+      return databaseErrorResponse(error, 'INSERT', 'POST /api/auth/signup')
     }
 
-    // Generate authentication token for WhatsApp
+    // Generate authentication token
     const authToken = generateAuthToken()
 
     // Insert token into auth_tokens table
@@ -71,33 +76,35 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: userId,
         token: authToken,
-        type: 'whatsapp',
+        type: 'app',
+        is_active: true,
       })
 
     if (tokenError) {
-      console.error('⚠️ Error creating token:', tokenError.message)
+      logger.debug('⚠️ Error creating token:', tokenError.message)
     } else {
-      console.log('✅ Token created successfully')
+      logger.debug('✅ Token created successfully')
     }
 
-    console.log('✅ User created:', userId)
+    logger.debug('✅ User created:', userId)
 
-    return NextResponse.json(
+    return successResponse(
       {
-        success: true,
-        user: {
-          id: userId,
-          email: email,
-          auth_token: authToken,
-        },
+        id: userId,
+        email: email,
+        auth_token: authToken,
       },
-      { status: 201 }
+      'Account created successfully',
+      201,
+      'POST /api/auth/signup'
     )
   } catch (err: any) {
-    console.error('❌ Error:', err.message)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    logger.debug('❌ Error:', err.message)
+    return errorResponse(
+      err instanceof Error ? err : 'Unknown error',
+      500,
+      { endpoint: 'POST /api/auth/signup' },
+      'POST /api/auth/signup'
     )
   }
 }

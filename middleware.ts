@@ -1,33 +1,43 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
-// FORCE RELOAD: 2024-10-18-v3
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   
-  // Check if authenticated via cookie
-  const userCookie = request.cookies.get('user_id')?.value
-  const isAuthenticated = !!userCookie
+  // Verificar cookies
+  const userId = request.cookies.get('user_id')?.value
+  const authToken = request.cookies.get('auth_token')?.value
+  const isLoggedIn = !!(userId || authToken)
 
-  console.log(`🛡️ [MIDDLEWARE v2] ${pathname} - Auth: ${isAuthenticated ? '✅ YES' : '❌ NO'}`)
-  console.log(`🍪 [MIDDLEWARE] Cookie value: "${userCookie || 'EMPTY'}"`)
-  console.log(`🍪 [MIDDLEWARE] All cookies: ${JSON.stringify(Object.fromEntries(request.cookies))}`)
+  // 🛡️ Debug
+  console.log(`\n🛡️ [MIDDLEWARE] ${pathname} | Logged: ${isLoggedIn}`)
 
-  // If not authenticated and not login, redirect
-  if (!isAuthenticated && !pathname.startsWith('/login') && !pathname.startsWith('/api')) {
-    console.log(`🔒 [MIDDLEWARE] Not authenticated - redirecting to /login`)
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+  // ===== CENÁRIO 1: Não autenticado tenta acessar rota protegida =====
+  if (!isLoggedIn && pathname !== '/login' && !pathname.startsWith('/api')) {
+    console.log(`   ➡️ Redirecting to /login`)
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // If authenticated and tries to access login, redirect to home
-  if (isAuthenticated && pathname.startsWith('/login')) {
-    console.log(`✅ [MIDDLEWARE] Already authenticated - redirecting to /`)
-    const url = request.nextUrl.clone()
-    url.pathname = '/'
-    return NextResponse.redirect(url)
+  // ===== CENÁRIO 2: Já autenticado acessa /login =====
+  if (isLoggedIn && pathname === '/login') {
+    // Pega os query params
+    const whatsappParam = request.nextUrl.searchParams.get('whatsapp')
+    const numberParam = request.nextUrl.searchParams.get('number')
+    const phoneNumber = whatsappParam || numberParam
+
+    if (phoneNumber) {
+      // Redireciona para WhatsApp authenticated com o número
+      const redirectUrl = new URL(`/whatsapp-authenticated?number=${encodeURIComponent(phoneNumber)}`, request.url)
+      console.log(`   ➡️ Redirecting to /whatsapp-authenticated?number=${phoneNumber}`)
+      return NextResponse.redirect(redirectUrl)
+    } else {
+      // Redireciona para home
+      console.log(`   ➡️ Redirecting to /`)
+      return NextResponse.redirect(new URL('/', request.url))
+    }
   }
 
+  // ===== DEFAULT: Deixa passar =====
+  console.log(`   ✅ Pass through`)
   return NextResponse.next()
 }
 

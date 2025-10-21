@@ -1,27 +1,16 @@
-'use client'
-
-import { useEffect, useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 import { CheckCircle, MessageCircle, ArrowRight } from 'lucide-react'
-import toast, { Toaster } from 'react-hot-toast'
+import { Toaster } from 'react-hot-toast'
+import { cookies } from 'next/headers'
 
-function WhatsAppContent() {
-  const [phoneNumber, setPhoneNumber] = useState<string>('')
-  const searchParams = useSearchParams()
+async function WhatsAppContent({ number }: { number: string }) {
+  // Verify user is authenticated
+  const cookieStore = await cookies()
+  const userId = cookieStore.get('user_id')?.value
 
-  useEffect(() => {
-    // Recuperar número do URL
-    const number = searchParams.get('number')
-    if (number) {
-      setPhoneNumber(number)
-      console.log('✅ WhatsApp authenticated for:', number)
-    }
-
-    // Limpar sessionStorage
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('whatsapp_number')
-    }
-  }, [searchParams])
+  if (!userId) {
+    throw new Error('User not authenticated')
+  }
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-green-400 via-green-500 to-green-600 p-4 sm:p-6">
@@ -48,12 +37,12 @@ function WhatsAppContent() {
           </p>
 
           {/* Phone Info */}
-          {phoneNumber && (
+          {number && (
             <div className="bg-green-50 border border-green-500 rounded-lg p-4 mb-6">
               <p className="text-sm !text-gray-600 mb-1">Linked phone number:</p>
               <p className="text-lg font-semibold !text-green-600 flex items-center justify-center gap-2">
                 <MessageCircle className="w-5 h-5" />
-                {phoneNumber}
+                {number}
               </p>
             </div>
           )}
@@ -109,7 +98,28 @@ function WhatsAppContent() {
   )
 }
 
-export default function WhatsAppAuthenticatedPage() {
+function LoadingFallback() {
+  return (
+    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-400 via-green-500 to-green-600">
+      <div className="text-white text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+        <p>Loading...</p>
+      </div>
+    </main>
+  )
+}
+
+/**
+ * WhatsApp Authentication Success Page
+ * Shows success message after user links WhatsApp number
+ */
+export default function WhatsAppAuthenticatedPage({
+  searchParams,
+}: {
+  searchParams: { number?: string }
+}) {
+  const phoneNumber = searchParams.number || ''
+
   return (
     <>
       <Toaster 
@@ -124,15 +134,8 @@ export default function WhatsAppAuthenticatedPage() {
           },
         }}
       />
-      <Suspense fallback={
-        <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-400 via-green-500 to-green-600">
-          <div className="text-white text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-            <p>Carregando...</p>
-          </div>
-        </main>
-      }>
-        <WhatsAppContent />
+      <Suspense fallback={<LoadingFallback />}>
+        <WhatsAppContent number={phoneNumber} />
       </Suspense>
     </>
   )

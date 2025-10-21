@@ -134,8 +134,8 @@ export async function POST(request: NextRequest) {
       name: 'user_id',
       value: user.id,
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: false, // Funciona em HTTP (dev) e HTTPS (prod)
+      sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
       path: '/',
     })
@@ -145,8 +145,8 @@ export async function POST(request: NextRequest) {
       name: 'auth_token',
       value: authToken,
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: false, // Funciona em HTTP (dev) e HTTPS (prod)
+      sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
       path: '/',
     })

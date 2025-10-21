@@ -1,24 +1,41 @@
 'use client'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ReactNode } from 'react'
+import { ReactNode, useMemo } from 'react'
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Cache data for 5 seconds
-      staleTime: 5000,
-      // Refetch every 10 seconds when window is focused
-      refetchInterval: 10000,
-      refetchOnWindowFocus: true,
-      // Retry failed requests
-      retry: 2,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+/**
+ * Query client configuration
+ * Shared across the entire application
+ */
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 1000 * 60 * 5, // 5 minutes
+        gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
+        retry: 1,
+        refetchOnWindowFocus: true,
+        refetchOnReconnect: true,
+      },
+      mutations: {
+        retry: 1,
+      },
     },
-  },
-})
+  })
+}
 
-export function QueryProvider({ children }: { children: ReactNode }) {
+interface QueryProviderProps {
+  children: ReactNode
+}
+
+/**
+ * Query Provider Component
+ * Provides React Query context to the entire application
+ */
+export function QueryProvider({ children }: QueryProviderProps) {
+  // Create query client once per render (useMemo ensures it's stable)
+  const queryClient = useMemo(() => createQueryClient(), [])
+
   return (
     <QueryClientProvider client={queryClient}>
       {children}

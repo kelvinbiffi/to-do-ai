@@ -11,81 +11,32 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true)  // NEW: Track auth check
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const router = useRouter()
 
-  // Detect query param ?whatsapp=... or ?number=... and handle WhatsApp flow
+  // Check authentication on mount
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      // Prefer 'whatsapp' parameter, fallback to 'number'
-      const whatsappNumber = params.get('whatsapp') || params.get('number')
-      
-      // Check if user is already authenticated
-      const checkAuth = async () => {
-        let isAuthenticated = false
+    const initializeAuth = async () => {
+      try {
+        const params = new URLSearchParams(window.location.search)
+        const whatsappNumber = params.get('whatsapp') || params.get('number')
 
-        try {
-          const response = await fetch('/api/auth/check', {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-          })
-          
-          if (response.ok) {
-            const data = await response.json()
-            isAuthenticated = data.authenticated === true
-          }
-        } catch (err) {
-          // Auth check error
-        }
-
-        // If authenticated, handle WhatsApp flow or redirect to home
-        if (isAuthenticated) {
-          if (whatsappNumber) {
-            // Link WhatsApp number first, then redirect
-            try {
-              await fetch('/api/auth/link-whatsapp', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ phone_number: whatsappNumber }),
-              })
-            } catch (err) {
-              // Error linking, but continue
-            }
-            
-            // Redirect to success page
-            setTimeout(() => {
-              window.location.href = `/whatsapp-authenticated?number=${encodeURIComponent(whatsappNumber)}`
-            }, 500)
-          } else {
-            // No WhatsApp param, redirect to home
-            router.push('/')
-          }
-          return
-        }
-        
-        // User not authenticated
+        // O middleware já redireciona usuários autenticados
+        // Aqui apenas salvamos o número WhatsApp para o fluxo de login
         if (whatsappNumber) {
-          // Save WhatsApp number for login flow
           sessionStorage.setItem('whatsapp_number', whatsappNumber)
         }
-        
+
         // Auth check complete, show login form
         setIsCheckingAuth(false)
+      } catch (error) {
+        console.error('Auth initialization error:', error)
+        setIsCheckingAuth(false)
       }
-      
-      checkAuth()
     }
-  }, [router])
 
-  // Helper function to get cookie value (no longer needed, but keeping for cleanup)
-  const getCookie = (name: string): string | null => {
-    // NOTE: HTTP-only cookies cannot be accessed from JavaScript
-    // Use /api/auth/check endpoint instead
-    return null
-  }
+    initializeAuth()
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -127,25 +78,19 @@ export default function LoginPage() {
           setPassword('')
         }
       } else {
-        // Get WhatsApp number directly from URL query params OR sessionStorage
+        // Get WhatsApp number
         let whatsappNumber = null
+        const params = new URLSearchParams(window.location.search)
+        whatsappNumber = params.get('whatsapp') || params.get('number')
         
-        if (typeof window !== 'undefined') {
-          // First, try to get from current URL
-          const params = new URLSearchParams(window.location.search)
-          whatsappNumber = params.get('whatsapp') || params.get('number')
-          
-          // If not in URL, try sessionStorage
-          if (!whatsappNumber) {
-            whatsappNumber = sessionStorage.getItem('whatsapp_number')
-          }
+        if (!whatsappNumber) {
+          whatsappNumber = sessionStorage.getItem('whatsapp_number')
         }
 
         const headers: Record<string, string> = {
           'Content-Type': 'application/json'
         }
         
-        // Se tem número WhatsApp, adiciona no header
         if (whatsappNumber) {
           headers['X-WhatsApp-Number'] = whatsappNumber
         }
@@ -154,7 +99,7 @@ export default function LoginPage() {
           method: 'POST',
           headers,
           body: JSON.stringify({ email, password }),
-          credentials: 'include',  // Important: include credentials to send/receive cookies
+          credentials: 'include',
         })
 
         const data = await response.json()
@@ -167,16 +112,9 @@ export default function LoginPage() {
           }
         } else {
           toast.success('Login successful!')
-          // Wait a bit for cookies to be processed
           setTimeout(() => {
-            // The redirect is inside data.data.redirect (nested structure)
             const redirect = data?.data?.redirect
-            
-            if (redirect) {
-              window.location.href = redirect
-            } else {
-              window.location.href = '/'
-            }
+            window.location.href = redirect || '/'
           }, 500)
         }
       }
@@ -232,7 +170,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Loading Spinner - Show while checking auth */}
+        {/* Loading Spinner */}
         {isCheckingAuth ? (
           <div className="flex flex-col items-center justify-center min-h-96">
             <div className="relative w-16 h-16 mb-4">
@@ -242,7 +180,7 @@ export default function LoginPage() {
             <p className="text-white text-lg font-medium">Checking authentication...</p>
           </div>
         ) : (
-          /* Login Form - Show after auth check */
+          /* Login Form */
           <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-md mx-auto">
           {/* Form Header */}
           <header className="text-center mb-6">

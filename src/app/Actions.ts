@@ -31,7 +31,9 @@ export async function getTodos() {
   const cookieStore = await cookies()
   const userId = cookieStore.get('user_id')?.value
   
-  if (!userId) return []
+  if (!userId) {
+    throw new Error('User not authenticated')
+  }
 
   const supabase = createSimpleSupabaseClient()
   const { data, error } = await supabase
@@ -42,10 +44,23 @@ export async function getTodos() {
 
   if (error) {
     console.error('Error fetching todos:', error)
-    return []
+    throw new Error('Failed to fetch todos from database')
   }
 
   return data || []
+}
+
+/**
+ * Separates todos into active and completed categories
+ * Used for efficient rendering in RSCs
+ */
+export async function getTodosByStatus() {
+  const todos = await getTodos()
+  
+  return {
+    active: todos.filter(todo => todo.status !== 'done'),
+    completed: todos.filter(todo => todo.status === 'done'),
+  }
 }
 
 export async function createTodo(input: { title: string; description?: string }) {
@@ -80,6 +95,10 @@ export async function createTodo(input: { title: string; description?: string })
     }
 
     const result = await response.json()
+    
+    // Revalidate the cache after successful creation
+    revalidatePath('/')
+    
     return { success: true, data: result.data, status: 201 }
   } catch (error) {
     console.error('Error creating todo:', error)
@@ -116,6 +135,10 @@ export async function updateTodo(id: string, patch: any) {
     }
 
     const result = await response.json()
+    
+    // Revalidate the cache after successful update
+    revalidatePath('/')
+    
     return { success: true, data: result.data, status: 200 }
   } catch (error) {
     console.error('Error updating todo:', error)
@@ -150,6 +173,9 @@ export async function deleteTodo(id: string) {
       return { error: error.error || 'Failed to delete todo', status: response.status }
     }
 
+    // Revalidate the cache after successful deletion
+    revalidatePath('/')
+    
     return { success: true, status: 200 }
   } catch (error) {
     console.error('Error deleting todo:', error)
@@ -160,5 +186,56 @@ export async function deleteTodo(id: string) {
 export async function toggleTodoStatus(id: string, currentStatus: string) {
   const newStatus = currentStatus === 'done' ? 'open' : 'done'
   return updateTodo(id, { status: newStatus })
+}
+
+/**
+ * Check if user is authenticated via API
+ * Used for login page to redirect already-authenticated users
+ */
+export async function checkAuthStatus(): Promise<boolean> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    const response = await fetch(`${baseUrl}/api/auth/check`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      return data.authenticated === true
+    }
+    
+    // Qualquer outro status code = não autenticado
+    return false
+  } catch (error) {
+    console.error('Error checking auth status:', error)
+    return false
+  }
+}
+
+/**
+ * Link WhatsApp number to user account
+ */
+export async function linkWhatsAppNumber(phoneNumber: string) {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    const response = await fetch(`${baseUrl}/api/auth/link-whatsapp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ phone_number: phoneNumber }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to link WhatsApp')
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error linking WhatsApp:', error)
+    throw error
+  }
 }
 

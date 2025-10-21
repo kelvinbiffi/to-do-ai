@@ -3,6 +3,7 @@ import { triggerAIAgentWebhook } from '@/lib/WebhookService'
 import { NextRequest, NextResponse } from 'next/server'
 import { successResponse, errorResponse, databaseErrorResponse } from '@/lib/ApiResponseHelper'
 import { logger } from '@/lib/Logger'
+import { revalidatePath } from 'next/cache'
 
 /**
  * Validates the auth token from the Authorization header
@@ -166,7 +167,7 @@ export async function POST(request: NextRequest) {
     const userAuthToken = authHeader?.replace('Bearer ', '') || ''
 
     try {
-      triggerAIAgentWebhook({
+      await triggerAIAgentWebhook({
         todoId: data.id,
         userAuthToken: userAuthToken,
         userId: userId,
@@ -178,6 +179,8 @@ export async function POST(request: NextRequest) {
     } catch (webhookError) {
       logger.warn('⚠️ [POST /api/todos] Webhook error (non-critical):', webhookError)
     }
+
+    revalidatePath('/todos')
 
     return successResponse(
       data,
