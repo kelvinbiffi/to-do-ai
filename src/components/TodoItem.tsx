@@ -6,11 +6,12 @@ import { Todo } from '@/types/Todo'
 import { toggleTodoStatus, deleteTodo, updateTodo } from '@/app/Actions'
 import { useInvalidateTodos } from '@/lib/useTodos'
 import toast from 'react-hot-toast'
-import { Check, ChevronDown, MoreVertical } from 'lucide-react'
+import { Check, ChevronDown, MoreVertical, Wand2 } from 'lucide-react'
 import Modal from './Modal'
 import TaskForm from './TaskForm'
 import DeleteConfirmDialog from './DeleteConfirmDialog'
 import TodoItemMenu from './TodoItemMenu'
+import AIEnhanceModal from './AIEnhanceModal'
 
 interface TodoItemProps {
   todo: Todo
@@ -22,6 +23,7 @@ export default function TodoItem({ todo: initialTodo }: TodoItemProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showAIEnhance, setShowAIEnhance] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const { invalidate } = useInvalidateTodos()
 
@@ -153,6 +155,21 @@ export default function TodoItem({ todo: initialTodo }: TodoItemProps) {
             </button>
           )}
 
+          {/* AI Magic Button */}
+          {!isDone && (
+            <button
+              onClick={() => setShowAIEnhance(true)}
+              disabled={isLoading}
+              className="flex-shrink-0 p-2 hover:bg-yellow-50 rounded transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-500 group relative"
+              aria-label="Enhance with Task buddy"
+            >
+              <Wand2 className="w-5 h-5 text-yellow-500 group-hover:text-yellow-600 transition-colors" />
+              <span className="absolute -top-8 right-0 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                Task buddy ✨
+              </span>
+            </button>
+          )}
+
           {/* Menu Button with Dropdown */}
           <div className="relative flex-shrink-0">
             <button
@@ -209,6 +226,14 @@ export default function TodoItem({ todo: initialTodo }: TodoItemProps) {
         isLoading={isLoading}
         title="Delete Task?"
         message="Are you sure you want to delete this task? This action cannot be undone."
+      />
+
+      <AIEnhanceModal
+        isOpen={showAIEnhance}
+        onClose={() => setShowAIEnhance(false)}
+        todoId={todo.id}
+        todoTitle={todo.title}
+        todoDescription={todo.description || undefined}
       />
     </>
   )

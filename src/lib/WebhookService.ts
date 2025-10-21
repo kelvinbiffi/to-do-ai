@@ -7,6 +7,10 @@ export interface WebhookPayload {
   timestamp: string
 }
 
+export interface AIEnhancePayload extends WebhookPayload {
+  userPrompt: string
+}
+
 /**
  * Triggers the AI Agent webhook via n8n
  * This sends the new todo information to n8n for AI enhancement
@@ -66,5 +70,64 @@ export async function triggerAIAgentWebhook(payload: WebhookPayload): Promise<vo
   } catch (error) {
     console.error('❌ [WebhookService] Failed to trigger webhook:', error)
     console.error('❌ [WebhookService] Error details:', error instanceof Error ? error.message : String(error))
+  }
+}
+
+/**
+ * Triggers AI enhancement for a specific todo with user prompt
+ * This sends the user's improvement request to n8n for AI enhancement
+ */
+export async function triggerAIEnhanceWebhook(payload: AIEnhancePayload): Promise<void> {
+  const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL_ENHANCE || process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL
+
+  console.log('🔗 [AIEnhance] Webhook URL from env:', webhookUrl ? '✅ Set' : '❌ Not set')
+  console.log('📦 [AIEnhance] Payload:', JSON.stringify({
+    todoId: payload.todoId,
+    title: payload.title,
+    userPrompt: payload.userPrompt,
+    timestamp: payload.timestamp,
+  }, null, 2))
+
+  if (!webhookUrl) {
+    console.warn('⚠️ [AIEnhance] Webhook URL not configured')
+    throw new Error('Webhook URL not configured')
+  }
+
+  try {
+    console.log('🔗 [AIEnhance] Triggering AI Enhancement webhook for todo:', payload.todoId)
+    console.log('🔗 [AIEnhance] User prompt:', payload.userPrompt)
+    
+    const message = `Task: "${payload.title}"${payload.description ? `\nCurrent description: ${payload.description}` : ''}\n\nUser request: ${payload.userPrompt}\n\nPlease improve this task based on the user's request.`
+    
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: message,
+        userAuthToken: payload.userAuthToken,
+        userId: payload.userId,
+        todoId: payload.todoId,
+        userPrompt: payload.userPrompt,
+        type: 'enhance',
+      }),
+    })
+
+    console.log(`📊 [AIEnhance] Response status: ${response.status} ${response.statusText}`)
+
+    if (!response.ok) {
+      const responseText = await response.text()
+      console.error(`❌ [AIEnhance] Error: ${response.status} ${response.statusText}`)
+      console.error(`❌ [AIEnhance] Response body: ${responseText}`)
+      throw new Error(`Webhook failed with status ${response.status}`)
+    }
+
+    const responseData = await response.json().catch(() => ({}))
+    console.log('✅ [AIEnhance] Webhook triggered successfully')
+    console.log('✅ [AIEnhance] Response:', JSON.stringify(responseData, null, 2))
+  } catch (error) {
+    console.error('❌ [AIEnhance] Failed to trigger webhook:', error)
+    throw error
   }
 }
